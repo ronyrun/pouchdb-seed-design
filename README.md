@@ -30,7 +30,18 @@ seed(db, {
       byFullName: function (doc) {
         emit(doc.firstName + ' ' + doc.lastName);
       }
-    }
+    },
+    filters: {
+          byFirstName: function (doc) {
+            emit(doc.firstName);
+          },
+          byLastName: function (doc) {
+            emit(doc.lastName);
+          },
+          byFullName: function (doc) {
+            emit(doc.firstName + ' ' + doc.lastName);
+          }
+        }
   }
 }, function () {
   console.dir(arguments);
@@ -63,7 +74,7 @@ seed(db, design)
 ## Credits
 
 This project is forked from [couchdb-seed-design](https://github.com/mmalecki/couchdb-seed-design) by Maciej Małecki.
-
 A huge round of applause goes to [Dale Harvey](https://github.com/daleharvey), [Calvin Metcalf](https://github.com/calvinmetcalf), and [Nolan Lawson](https://github.com/nolanlawson) for all the tireless work they put into maintaining PouchDB!
-
 And a special thanks goes to [Mirco Zeiss](http://www.mircozeiss.com) for all the awesome blog articles on how to use Node.js, Express, and CouchDB!
+
+ronyrun : Add of filters property.

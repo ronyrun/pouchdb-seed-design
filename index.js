@@ -14,7 +14,8 @@ function normalizeDoc(doc, id) {
     _id: id || doc._id,
     _rev: doc._rev,
     views: (doc.views && objmap(doc.views, normalizeView)) || {},
-    updates: (doc.updates && objmap(doc.updates, normalizeUpdate)) || {}
+    updates: (doc.updates && objmap(doc.updates, normalizeUpdate)) || {},
+    filters: (doc.filters && objmap(doc.filters, normalizeUpdate)) || {}
   };
 }
 
@@ -22,11 +23,6 @@ function normalizeUpdate(update) {
   return update.toString();
 }
 
-function updatesEqual(a, b) {
-  return !objsome(a, function (v, k) {
-    return v !== b[k];
-  });
-}
 
 function normalizeView(view) {
   var r = {};
@@ -57,13 +53,25 @@ function viewsEqual(a, b) {
   });
 }
 
+function updatesEqual(a, b) {
+  return !objsome(a, function (v, k) {
+    return v !== b[k];
+  });
+}
+
+function filtersEqual(a, b) {
+  return !objsome(a, function (v, k) {
+    return v !== b[k];
+  });
+}
+
 function docEqual(local, remote) {
   if (!remote) {
     return false;
   }
-
   return viewsEqual(local.views, remote.views) &&
-         updatesEqual(local.updates, remote.updates);
+      updatesEqual(local.updates, remote.updates) &&
+      filtersEqual(local.filters, remote.filters);
 }
 
 module.exports = function (db, design, cb) {
@@ -72,37 +80,35 @@ module.exports = function (db, design, cb) {
   }
 
   var local = objmap(objkeysmap(design, addDesign), normalizeDoc);
-
   var seedPromise = db.allDocs({ include_docs: true, keys: Object.keys(local) })
+      .then(function (docs) {
 
-    .then(function (docs) {
+        var diff;
+        var remote = {};
+        var update;
 
-      var diff;
-      var remote = {};
-      var update;
+        docs.rows.forEach(function (doc) {
+          if (doc.doc) {
+            remote[doc.key] = normalizeDoc(doc.doc);
+          }
+        });
 
-      docs.rows.forEach(function (doc) {
-        if (doc.doc) {
-          remote[doc.key] = normalizeDoc(doc.doc);
+        update = objmaptoarr(objfilter(local, function (value, key) {
+          return !docEqual(value, remote[key]);
+        }), function (v, k) {
+          if (remote[k]) {
+            v._rev = remote[k]._rev;
+          }
+
+          return v;
+        });
+
+        if (update.length > 0) {
+          return db.bulkDocs({ docs: update });
+        } else {
+          return Promise.resolve(false);
         }
       });
-
-      update = objmaptoarr(objfilter(local, function (value, key) {
-        return !docEqual(value, remote[key]);
-      }), function (v, k) {
-        if (remote[k]) {
-          v._rev = remote[k]._rev;
-        }
-
-        return v;
-      });
-
-      if (update.length > 0) {
-        return db.bulkDocs({ docs: update });
-      } else {
-        return Promise.resolve(false);
-      }
-    });
 
   if(typeof cb === 'function') {
     seedPromise.nodeify(cb);
